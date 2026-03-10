@@ -32,3 +32,6 @@ Thumbs.db
 .openclaw/sessions/
 .openclaw/logs/
 *.sock
+
+# Skills (reinstallable)
+skills/
