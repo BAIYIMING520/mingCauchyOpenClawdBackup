@@ -1,0 +1,34 @@
+# OpenClaw Backup - .gitignore
+
+## Sensitive
+*.json
+*.token
+*.key
+*.pem
+*.crt
+.env
+.env.*
+secrets/
+credentials/
+
+## Cache & Temp
+node_modules/
+.cache/
+tmp/
+temp/
+*.log
+
+## IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+## OS
+.DS_Store
+Thumbs.db
+
+## OpenClaw Specific
+.openclaw/sessions/
+.openclaw/logs/
+*.sock
