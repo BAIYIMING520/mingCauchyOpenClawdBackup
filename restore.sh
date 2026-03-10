@@ -35,7 +35,7 @@ fi
 # 4. Reinstall skills
 echo "[4/6] Reinstalling skills..."
 if command -v skillhub &> /dev/null; then
-  for skill in agent-browser find-skills github proactive-agent automation-workflows multi-search-engine tavily tavily-search summarize n8n obsidian tencentcloud-lighthouse-skill tencent-cos-skill tencent-docs weather; do
+  for skill in agent-browser find-skills github workspace-backup proactive-agent automation-workflows multi-search-engine tavily tavily-search summarize n8n obsidian tencentcloud-lighthouse-skill tencent-cos-skill tencent-docs weather; do
     echo "  → Installing $skill..."
     skillhub install "$skill" || echo "  ✗ $skill failed"
   done

@@ -19,6 +19,7 @@ done
 - agent-browser
 - find-skills
 - github
+- workspace-backup
 
 ## AI & Automation
 - proactive-agent
