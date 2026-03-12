@@ -334,7 +334,9 @@ HTML_TEMPLATE = '''
                 <div class="alert-section">
                     <h4>📉 趋势拟合告警</h4>
                     <label><input type="checkbox" id="alert-trend-enabled"> 启用</label>
-                    <small>一次+二次+三次函数拟合，三者同向时触发</small>
+                    <br>回看时间: <input type="number" id="alert-trend-lookback" placeholder="60" style="width:60px"> 分钟
+                    <br><small>用多少分钟的数据做拟合（60=1小时，120=2小时）</small>
+                    <br><small>注: 数据点少于12个时不触发</small>
                 </div>
                 <div class="alert-section">
                     <h4">🔄 刷新间隔</h4>
@@ -601,6 +603,7 @@ HTML_TEMPLATE = '''
             // 趋势拟合
             const tf = config.trend_fit || {};
             document.getElementById('alert-trend-enabled').checked = tf.enabled !== false;
+            document.getElementById('alert-trend-lookback').value = tf.lookback || 60;
             
             // 开盘/收盘
             const oc = config.open_close_push || {};
@@ -631,7 +634,8 @@ HTML_TEMPLATE = '''
                     threshold: parseFloat(document.getElementById('alert-volume-threshold').value) || 50
                 },
                 trend_fit: {
-                    enabled: document.getElementById('alert-trend-enabled').checked
+                    enabled: document.getElementById('alert-trend-enabled').checked,
+                    lookback: parseInt(document.getElementById('alert-trend-lookback').value) || 60
                 },
                 open_close_push: {
                     enabled: true,

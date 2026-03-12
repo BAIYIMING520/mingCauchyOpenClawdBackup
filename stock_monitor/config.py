@@ -37,6 +37,7 @@ DEFAULT_CONFIG = {
         # 趋势拟合告警（三次拟合都向下）
         "trend_fit": {
             "enabled": True,
+            "lookback": 60,  # 看最近多少个数据点（60=1小时，120=2小时）
         },
         # 突破告警
         "breakout": {

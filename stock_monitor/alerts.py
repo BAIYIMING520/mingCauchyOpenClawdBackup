@@ -60,7 +60,8 @@ class AlertChecker:
         
         # 5. 趋势判断告警（三次拟合都向下）
         if self.alerts.get("trend_fit", {}).get("enabled"):
-            trend_result = self._check_trend_fit(code)
+            lookback = self.alerts.get("trend_fit", {}).get("lookback", 6)
+            trend_result = self._check_trend_fit(code, lookback)
             if trend_result:
                 alerts_triggered.append({
                     "type": "trend_fit",
@@ -70,13 +71,20 @@ class AlertChecker:
         
         return alerts_triggered
     
-    def _check_trend_fit(self, code: str) -> str:
-        """多函数拟合趋势判断"""
+    def _check_trend_fit(self, code: str, lookback: int = 60) -> str:
+        """多函数拟合趋势判断
+        
+        Args:
+            code: 股票代码
+            lookback: 看最近多少个数据点（默认60个=1小时）
+        """
         data = get_minute_data(code)
-        if not data or len(data) < 10:
+        # 至少需要12个数据点才能做有效拟合
+        if not data or len(data) < 12:
             return None
         
-        prices = np.array([d['close'] for d in data])
+        # 只取最近N个数据点（短线趋势）
+        prices = np.array([d['close'] for d in data[-lookback:]])
         x = np.arange(len(prices))
         
         # 一次拟合
@@ -92,11 +100,11 @@ class AlertChecker:
         
         # 三个都向下
         if linear_down and quadratic_down and cubic_down:
-            return "下跌趋势确认 ⬇️ 可做反T"
+            return "下跌趋势确认 ⬇️ 可做反T(卖出)"
         
         # 三个都向上
         if not linear_down and not quadratic_down and not cubic_down:
-            return "上涨趋势确认 ⬆️"
+            return "上涨趋势确认 ⬆️ 可做正T(买入)"
         
         return None
     
