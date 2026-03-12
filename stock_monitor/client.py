@@ -66,7 +66,8 @@ class EastMoneyClient:
             resp = self.session.get(url, params=params, timeout=3)
             data = resp.json()
             return data.get('data') is not None
-        except:
+        except Exception as e:
+            print(f"测试secid失败 {secid}: {e}")
             return False
     
     def _get_yesterday_close(self, secid: str) -> Optional[float]:
@@ -214,8 +215,8 @@ class EastMoneyClient:
                         if result['price'] and yesterday_close:
                             result['change'] = round(result['price'] - yesterday_close, 2)
                             result['change_pct'] = round(result['change'] / yesterday_close * 100, 2)
-                except:
-                    pass
+                except Exception as e:
+                    print(f"获取昨日收盘价失败: {e}")
                 
                 # 如果日K没有，尝试从今天第一分钟数据获取（开盘价≈昨收）
                 if not result['yesterday_close']:
@@ -227,8 +228,8 @@ class EastMoneyClient:
                             if result['yesterday_close'] and result['price']:
                                 result['change'] = round(result['price'] - result['yesterday_close'], 2)
                                 result['change_pct'] = round(result['change'] / result['yesterday_close'] * 100, 2)
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"从分钟数据获取昨收失败: {e}")
                 
                 # 最后 fallback：用API数据但过滤异常
                 if not result['yesterday_close'] and result['change_pct'] and result['price'] and result['price'] > 0:

@@ -170,6 +170,21 @@ HTML_TEMPLATE = '''
             font-size: 14px;
             color: #888;
         }
+        .alert-section {
+            background: #1a1a2e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .alert-section h4 { margin: 0 0 10px 0; color: #00d4ff; }
+        .alert-section input[type="number"] {
+            background: #16213e;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            width: 60px;
+        }
         .stock-time {
             font-size: 12px;
             color: #666;
@@ -256,13 +271,14 @@ HTML_TEMPLATE = '''
                 <span>自选股: <strong id="stockCount">0</strong> 只</span>
             </div>
             <div class="status-item">
-                <span>刷新: <strong id="interval">60</strong>秒</span>
+                <span>刷新: <strong id="interval">-</strong>秒</span>
             </div>
         </div>
         
         <div class="add-form">
             <input type="text" id="stockInput" placeholder="输入股票代码 (如 600519, 000001, 300750)" maxlength="6">
             <button class="btn-add" onclick="addStock()">+ 添加股票</button>
+            <button class="btn-add" style="background:#ff6b6b" onclick="openAlertConfig()">⚙️ 告警配置</button>
         </div>
         
         <div class="stock-grid" id="stockGrid">
@@ -291,6 +307,49 @@ HTML_TEMPLATE = '''
         </div>
     </div>
     
+    <!-- 告警配置弹窗 -->
+    <div class="modal-overlay" id="alertModal">
+        <div class="modal" style="max-width:600px">
+            <div class="modal-header">
+                <div class="modal-title">告警配置</div>
+                <button class="modal-close" onclick="closeAlertModal()">×</button>
+            </div>
+            <div style="padding:20px;max-height:70vh;overflow-y:auto">
+                <div class="alert-section">
+                    <h4>📈 涨跌幅告警</h4>
+                    <label><input type="checkbox" id="alert-price-change-enabled"> 启用</label>
+                    <input type="number" id="alert-price-change-threshold" placeholder="阈值%" style="width:80px"> % 以上触发
+                </div>
+                <div class="alert-section">
+                    <h4>⚡ 快速波动告警</h4>
+                    <label><input type="checkbox" id="alert-rapid-enabled"> 启用</label>
+                    <input type="number" id="alert-rapid-minutes" placeholder="30" style="width:60px"> 分钟内涨跌
+                    <input type="number" id="alert-rapid-threshold" placeholder="3" style="width:60px"> % 触发
+                </div>
+                <div class="alert-section">
+                    <h4>📊 放量告警</h4>
+                    <label><input type="checkbox" id="alert-volume-enabled"> 启用</label>
+                    成交量增加 <input type="number" id="alert-volume-threshold" placeholder="50" style="width:60px"> % 触发
+                </div>
+                <div class="alert-section">
+                    <h4>📉 趋势拟合告警</h4>
+                    <label><input type="checkbox" id="alert-trend-enabled"> 启用</label>
+                    <small>一次+二次+三次函数拟合，三者同向时触发</small>
+                </div>
+                <div class="alert-section">
+                    <h4">🔄 刷新间隔</h4>
+                    <input type="number" id="alert-refresh-interval" placeholder="60" style="width:80px"> 秒
+                </div>
+                <div class="alert-section">
+                    <h4">🔔 开盘/收盘推送</h4>
+                    <label><input type="checkbox" id="alert-open-enabled"> 开盘推送</label>
+                    <label><input type="checkbox" id="alert-close-enabled"> 收盘推送</label>
+                </div>
+                <button class="btn-add" onclick="saveAlertConfig()" style="margin-top:20px;width:100%">保存配置</button>
+            </div>
+        </div>
+    </div>
+    
     <script>
         let stocks = [];
         let autoRefresh = null;
@@ -301,8 +360,16 @@ HTML_TEMPLATE = '''
             const res = await fetch('/api/stocks');
             stocks = await res.json();
             document.getElementById('stockCount').textContent = stocks.length;
+            
+            // 获取刷新间隔配置
+            const alertsRes = await fetch('/api/alerts');
+            const alerts = await alertsRes.json();
+            const refreshInterval = (alerts.refresh_interval || 60) * 1000;
+            
+            document.getElementById('interval').textContent = alerts.refresh_interval || 60;
+            
             renderStocks();
-            startAutoRefresh();
+            startAutoRefresh(refreshInterval);
         }
         
         // 渲染股票卡片
@@ -387,9 +454,9 @@ HTML_TEMPLATE = '''
         }
         
         // 自动刷新
-        function startAutoRefresh() {
+        function startAutoRefresh(intervalMs = 60000) {
             if (autoRefresh) clearInterval(autoRefresh);
-            autoRefresh = setInterval(refreshData, 60000);
+            autoRefresh = setInterval(refreshData, intervalMs);
             refreshData();
         }
         
@@ -507,9 +574,89 @@ HTML_TEMPLATE = '''
             document.getElementById('chartModal').classList.remove('show');
         }
         
+        // 打开告警配置
+        async function openAlertConfig() {
+            const res = await fetch('/api/alerts');
+            const config = await res.json();
+            
+            // 刷新间隔
+            document.getElementById('alert-refresh-interval').value = config.refresh_interval || 60;
+            
+            // 涨跌幅告警
+            const pc = config.price_change || {};
+            document.getElementById('alert-price-change-enabled').checked = pc.enabled !== false;
+            document.getElementById('alert-price-change-threshold').value = pc.threshold || 5;
+            
+            // 快速波动
+            const rc = config.rapid_change || {};
+            document.getElementById('alert-rapid-enabled').checked = rc.enabled !== false;
+            document.getElementById('alert-rapid-minutes').value = rc.minutes || 30;
+            document.getElementById('alert-rapid-threshold').value = rc.threshold || 3;
+            
+            // 放量
+            const vs = config.volume_surge || {};
+            document.getElementById('alert-volume-enabled').checked = vs.enabled !== false;
+            document.getElementById('alert-volume-threshold').value = vs.threshold || 50;
+            
+            // 趋势拟合
+            const tf = config.trend_fit || {};
+            document.getElementById('alert-trend-enabled').checked = tf.enabled !== false;
+            
+            // 开盘/收盘
+            const oc = config.open_close_push || {};
+            document.getElementById('alert-open-enabled').checked = oc.push_open !== false;
+            document.getElementById('alert-close-enabled').checked = oc.push_close !== false;
+            
+            document.getElementById('alertModal').classList.add('show');
+        }
+        
+        function closeAlertModal() {
+            document.getElementById('alertModal').classList.remove('show');
+        }
+        
+        async function saveAlertConfig() {
+            const config = {
+                refresh_interval: parseInt(document.getElementById('alert-refresh-interval').value) || 60,
+                price_change: {
+                    enabled: document.getElementById('alert-price-change-enabled').checked,
+                    threshold: parseFloat(document.getElementById('alert-price-change-threshold').value) || 5
+                },
+                rapid_change: {
+                    enabled: document.getElementById('alert-rapid-enabled').checked,
+                    minutes: parseInt(document.getElementById('alert-rapid-minutes').value) || 30,
+                    threshold: parseFloat(document.getElementById('alert-rapid-threshold').value) || 3
+                },
+                volume_surge: {
+                    enabled: document.getElementById('alert-volume-enabled').checked,
+                    threshold: parseFloat(document.getElementById('alert-volume-threshold').value) || 50
+                },
+                trend_fit: {
+                    enabled: document.getElementById('alert-trend-enabled').checked
+                },
+                open_close_push: {
+                    enabled: true,
+                    push_open: document.getElementById('alert-open-enabled').checked,
+                    push_close: document.getElementById('alert-close-enabled').checked
+                }
+            };
+            
+            await fetch('/api/alerts', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(config)
+            });
+            
+            alert('配置已保存！');
+            closeAlertModal();
+        }
+        
         // 点击遮罩关闭
         document.getElementById('chartModal').addEventListener('click', e => {
             if (e.target.id === 'chartModal') closeModal();
+        });
+        
+        document.getElementById('alertModal').addEventListener('click', e => {
+            if (e.target.id === 'alertModal') closeAlertModal();
         });
         
         // 初始化
@@ -578,14 +725,36 @@ def api_minute(code):
     data = get_minute_data(code)
     return jsonify(data)
 
+@app.route('/api/alerts', methods=['GET'])
+def api_get_alerts():
+    """获取告警配置"""
+    from config import get_alerts_config
+    return jsonify(get_alerts_config())
+
+@app.route('/api/alerts', methods=['POST'])
+def api_save_alerts():
+    """保存告警配置"""
+    from config import save_alerts_config
+    data = request.get_json()
+    save_alerts_config(data)
+    return jsonify({'success': True})
+
 # ==================== 主程序 ====================
 
 def main():
+    # 启动后台定时任务
+    from scheduler import background_task
+    from config import load_config
+    config = load_config()
+    interval = config.get("refresh_interval", 60)
+    background_task.start(interval=interval)
+    
     print("=" * 50)
     print("A股分时监控服务启动")
     print("=" * 50)
     print("访问 http://localhost:8000 管理自选股")
     print("点击卡片查看分时图")
+    print("后台告警任务: 已启动")
     print("按 Ctrl+C 停止服务")
     print("=" * 50)
     

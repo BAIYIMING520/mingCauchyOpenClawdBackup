@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 东方财富A股分时监控服务
-功能：管理自选股 + 开盘时间自动抓取分时数据
+功能：管理自选股 + 告警配置 + 开盘时间自动抓取分时数据
 """
 
 import json
@@ -15,7 +15,48 @@ CONFIG_FILE = Path(__file__).parent / "config.json"
 DEFAULT_CONFIG = {
     "stocks": [],  # 自选股列表 ["600519", "000001", "300750"]
     "interval": 60,  # 抓取间隔（秒）
-    "enabled": True
+    "enabled": True,
+    "refresh_interval": 60,  # 前端刷新间隔（秒）
+    "alerts": {
+        # 涨跌幅告警 (单日)
+        "price_change": {
+            "enabled": True,
+            "threshold": 5.0,  # 涨跌幅超过5%
+        },
+        # 快速波动告警 (N分钟)
+        "rapid_change": {
+            "enabled": True,
+            "minutes": 30,  # N分钟内
+            "threshold": 3.0,  # 涨跌超过3%
+        },
+        # 放量告警
+        "volume_surge": {
+            "enabled": True,
+            "threshold": 50.0,  # 成交量增加50%
+        },
+        # 趋势拟合告警（三次拟合都向下）
+        "trend_fit": {
+            "enabled": True,
+        },
+        # 突破告警
+        "breakout": {
+            "enabled": False,
+            "type": "high",  # high: 突破前高, low: 突破前低
+            "days": 20,  # 过去N天
+        },
+        # 开盘/收盘推送
+        "open_close_push": {
+            "enabled": True,
+            "push_open": True,   # 开盘推送
+            "push_close": True,  # 收盘推送
+        },
+
+    },
+    "quote0": {
+        "enabled": True,
+        "api_key": "dot_app_lfiIjUQEFgKTUEkNbjpywfcbDePxRaBkYBCWyhLeCBsCnJBFjtPHSgVRkEWzFgfP",
+        "device_id": "9C9E6E3B81E8"
+    }
 }
 
 def load_config() -> dict:
@@ -73,6 +114,34 @@ def is_trading_time() -> bool:
     
     return (morning_start <= current_time <= morning_end) or \
            (afternoon_start <= current_time <= afternoon_end)
+
+def get_alerts_config() -> dict:
+    """获取告警配置"""
+    config = load_config()
+    return config.get("alerts", DEFAULT_CONFIG["alerts"])
+
+def save_alerts_config(alerts: dict):
+    """保存告警配置"""
+    config = load_config()
+    config["alerts"] = alerts
+    save_config(config)
+
+def get_quote0_config() -> dict:
+    """获取Quote/0配置"""
+    config = load_config()
+    return config.get("quote0", DEFAULT_CONFIG["quote0"])
+
+def is_market_open_time() -> bool:
+    """是否刚开盘（9:30-9:45）"""
+    now = datetime.now()
+    current_time = now.time()
+    return time(9, 30) <= current_time <= time(9, 45)
+
+def is_market_close_time() -> bool:
+    """是否快收盘（14:45-15:00）"""
+    now = datetime.now()
+    current_time = now.time()
+    return time(14, 45) <= current_time <= time(15, 0)
 
 if __name__ == "__main__":
     # 测试
