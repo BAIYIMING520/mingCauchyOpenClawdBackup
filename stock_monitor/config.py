@@ -57,6 +57,16 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "api_key": "dot_app_lfiIjUQEFgKTUEkNbjpywfcbDePxRaBkYBCWyhLeCBsCnJBFjtPHSgVRkEWzFgfP",
         "device_id": "9C9E6E3B81E8"
+    },
+    "email": {
+        "enabled": False,
+        "smtp_host": "smtp.qq.com",
+        "smtp_port": 587,
+        "use_tls": True,
+        "username": "your_email@qq.com",
+        "password": "your_auth_code",
+        "to_addrs": ["recipient@example.com"],
+        "enabled_types": ["price_change", "rapid_change", "volume_surge", "trend_fit"]  # 仅发送这些类型的告警
     }
 }
 
@@ -131,6 +141,11 @@ def get_quote0_config() -> dict:
     """获取Quote/0配置"""
     config = load_config()
     return config.get("quote0", DEFAULT_CONFIG["quote0"])
+
+def get_email_config() -> dict:
+    """获取邮件配置"""
+    config = load_config()
+    return config.get("email", DEFAULT_CONFIG["email"])
 
 def is_market_open_time() -> bool:
     """是否刚开盘（9:30-9:45）"""

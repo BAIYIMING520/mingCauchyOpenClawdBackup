@@ -7,9 +7,10 @@ import sys
 sys.path.append(__file__.rsplit('/', 1)[0])
 
 from database import get_minute_data
-from config import get_alerts_config, get_quote0_config
+from config import get_alerts_config, get_quote0_config, load_config
 from client import EastMoneyClient
 import subprocess
+from datetime import datetime
 import numpy as np
 
 class AlertChecker:
@@ -17,6 +18,11 @@ class AlertChecker:
         self.client = EastMoneyClient()
         self.alerts = get_alerts_config()
         self.quote0 = get_quote0_config()
+        self.email = load_config().get("email", {})
+    
+    def get_email_config(self):
+        """获取邮件配置"""
+        return self.email
     
     def check_all(self, code: str, realtime_data: dict):
         """检查所有告警"""
@@ -225,6 +231,75 @@ class AlertChecker:
         except Exception as e:
             print(f"Quote/0 push error: {e}")
             return False
+    
+    def push_to_email(self, alert: dict):
+        """发送邮件通知
+        
+        Args:
+            alert: 告警 dict，需包含 type, msg, severity
+        """
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.header import Header
+        
+        email_cfg = self.email
+        if not email_cfg.get("enabled"):
+            return False
+        
+        # 检查是否开启该类型告警
+        enabled_types = email_cfg.get("enabled_types", [])
+        if enabled_types and alert.get("type") not in enabled_types:
+            return False
+        
+        try:
+            smtp_host = email_cfg.get("smtp_host", "smtp.qq.com")
+            smtp_port = email_cfg.get("smtp_port", 587)
+            username = email_cfg.get("username", "")
+            password = email_cfg.get("password", "")
+            to_addrs = email_cfg.get("to_addrs", [])
+            
+            if not username or not password or not to_addrs:
+                print("Email config incomplete")
+                return False
+            
+            # 构建邮件
+            subject = f"股票告警 - {alert.get('type', 'unknown')}"
+            body = f"""【{alert.get('severity', 'info').upper()}】{alert.get('msg', '')}
+
+类型: {alert.get('type', '')}
+时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+来自 A股监控系统"""
+            
+            msg = MIMEText(body, 'plain', 'utf-8')
+            msg['Subject'] = Header(subject, 'utf-8')
+            msg['From'] = username
+            msg['To'] = ','.join(to_addrs)
+            
+            # 发送
+            server = smtplib.SMTP(smtp_host, smtp_port)
+            if email_cfg.get("use_tls", True):
+                server.starttls()
+            server.login(username, password)
+            server.sendmail(username, to_addrs, msg.as_string())
+            server.quit()
+            
+            print(f"📧 Email sent: {alert.get('msg')}")
+            return True
+        except Exception as e:
+            print(f"Email send error: {e}")
+            return False
+    
+    def push_all(self, alert: dict):
+        """推送告警到所有渠道
+        
+        Args:
+            alert: 告警 dict
+        """
+        # 发送到 Quote/0
+        self.push_to_quote0(alert.get("msg", ""))
+        # 发送到邮件
+        self.push_to_email(alert)
 
 
 def check_and_push(code: str, realtime_data: dict):
@@ -235,7 +310,7 @@ def check_and_push(code: str, realtime_data: dict):
     if alerts:
         for alert in alerts:
             print(f"🚨 {alert['msg']}")
-            checker.push_to_quote0(alert['msg'])
+            checker.push_all(alert)  # 同时推送到所有渠道
     
     return alerts
 
