@@ -36,12 +36,19 @@ class EastMoneyClient:
         # 可能的secid列表（按可能性排序）
         candidates = []
         
-        if code.startswith('6'):
-            candidates.append(f'0.{code}')  # 上海
-        elif code.startswith(('0', '3')):
-            # 002xxx 可能是上海或深圳，需要尝试两个
-            candidates.append(f'1.{code}')  # 深圳
-            candidates.append(f'0.{code}')  # 上海
+        if code.startswith('6') or code.startswith('603'):
+            # 6开头和603开头用深圳secid (东方财富API的特殊设计)
+            candidates.append(f'1.{code}')
+        elif code.startswith('0'):
+            if code == '000001':
+                # 000001需要用深圳secid获取上证指数
+                candidates.append(f'1.{code}')
+            else:
+                # 002xxx是上海股
+                candidates.append(f'0.{code}')
+        elif code.startswith('3'):
+            # 300xxx是上海股
+            candidates.append(f'0.{code}')
         elif code.startswith(('8', '4')):
             candidates.append(f'0.{code}')  # 北京
         else:
@@ -188,8 +195,8 @@ class EastMoneyClient:
                 'code': d.get('f57'),
                 'name': d.get('f58'),
                 'price': d.get('f43', 0) / 100 if d.get('f43') else 0,
-                'change': d.get('f44', 0) / 100 if d.get('f44') else 0,
-                'change_pct': d.get('f45', 0) / 100 if d.get('f45') else 0,
+                'change': 0,
+                'change_pct': 0,
                 'volume': d.get('f47', 0),
                 'amount': d.get('f48', 0),
                 'yesterday_close': None,
@@ -203,37 +210,14 @@ class EastMoneyClient:
             if is_index:
                 # 指数：f46 是昨日收盘点位
                 result['yesterday_close'] = d.get('f46', 0) / 100 if d.get('f46') else None
-                if result['yesterday_close'] and result['price']:
-                    result['change'] = round(result['price'] - result['yesterday_close'], 2)
-                    result['change_pct'] = round(result['change'] / result['yesterday_close'] * 100, 2)
             else:
-                # 股票：尝试从日K线获取昨天收盘价
-                try:
-                    yesterday_close = self._get_yesterday_close(secid)
-                    if yesterday_close and yesterday_close > 0:
-                        result['yesterday_close'] = yesterday_close
-                        if result['price'] and yesterday_close:
-                            result['change'] = round(result['price'] - yesterday_close, 2)
-                            result['change_pct'] = round(result['change'] / yesterday_close * 100, 2)
-                except Exception as e:
-                    print(f"获取昨日收盘价失败: {e}")
-                
-                # 如果日K没有，尝试从今天第一分钟数据获取（开盘价≈昨收）
-                if not result['yesterday_close']:
-                    try:
-                        from database import get_minute_data
-                        minute_data = get_minute_data(code)
-                        if minute_data and len(minute_data) > 0:
-                            result['yesterday_close'] = minute_data[0].get('close')
-                            if result['yesterday_close'] and result['price']:
-                                result['change'] = round(result['price'] - result['yesterday_close'], 2)
-                                result['change_pct'] = round(result['change'] / result['yesterday_close'] * 100, 2)
-                    except Exception as e:
-                        print(f"从分钟数据获取昨收失败: {e}")
-                
-                # 最后 fallback：用API数据但过滤异常
-                if not result['yesterday_close'] and result['change_pct'] and result['price'] and result['price'] > 0:
-                        result['yesterday_close'] = round(result['price'] / (1 + result['change_pct'] / 100), 2)
+                # 股票：f46 是昨日收盘价
+                result['yesterday_close'] = d.get('f46', 0) / 100 if d.get('f46') else None
+            
+            # 计算涨跌和涨跌幅（用 f43 和 f46 直接计算，避免 f45 字段异常）
+            if result['yesterday_close'] and result['yesterday_close'] > 0:
+                result['change'] = round(result['price'] - result['yesterday_close'], 2)
+                result['change_pct'] = round(result['change'] / result['yesterday_close'] * 100, 2)
             
             return result
             
